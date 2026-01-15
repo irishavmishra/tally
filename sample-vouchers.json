@@ -1,0 +1,78 @@
+[
+    {
+        "voucherType": "Journal",
+        "date": "20260115",
+        "companyName": "ABC Ltd",
+        "narration": "Opening Balance Entry",
+        "voucherNumber": "JV001",
+        "ledgerEntries": [
+            {
+                "ledgerName": "Cash",
+                "amount": 50000,
+                "isDeemedPositive": "No"
+            },
+            {
+                "ledgerName": "Capital Account",
+                "amount": 50000,
+                "isDeemedPositive": "Yes"
+            }
+        ]
+    },
+    {
+        "voucherType": "Payment",
+        "date": "20260115",
+        "companyName": "ABC Ltd",
+        "narration": "Rent Payment for January 2026",
+        "voucherNumber": "PAY001",
+        "ledgerEntries": [
+            {
+                "ledgerName": "Rent",
+                "amount": 15000,
+                "isDeemedPositive": "No"
+            },
+            {
+                "ledgerName": "Cash",
+                "amount": 15000,
+                "isDeemedPositive": "Yes"
+            }
+        ]
+    },
+    {
+        "voucherType": "Receipt",
+        "date": "20260115",
+        "companyName": "ABC Ltd",
+        "narration": "Cash received from customer",
+        "voucherNumber": "REC001",
+        "ledgerEntries": [
+            {
+                "ledgerName": "Cash",
+                "amount": 25000,
+                "isDeemedPositive": "No"
+            },
+            {
+                "ledgerName": "Sales",
+                "amount": 25000,
+                "isDeemedPositive": "Yes"
+            }
+        ]
+    },
+    {
+        "voucherType": "Purchase",
+        "date": "20260115",
+        "companyName": "ABC Ltd",
+        "narration": "Purchase of office supplies",
+        "voucherNumber": "PUR001",
+        "ledgerEntries": [
+            {
+                "ledgerName": "Purchase",
+                "amount": 5000,
+                "isDeemedPositive": "No"
+            },
+            {
+                "ledgerName": "Cash",
+                "amount": 5000,
+                "isDeemedPositive": "Yes"
+            }
+        ]
+    }
+]

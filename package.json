@@ -1,0 +1,30 @@
+{
+  "name": "tally-automation",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "tally",
+    "accounting",
+    "automation",
+    "api",
+    "erp"
+  ],
+  "author": "",
+  "license": "MIT",
+  "description": "Advanced Tally Automation System - Create vouchers, manage ledgers, and automate accounting entries using Tally API",
+  "dependencies": {
+    "body-parser": "^2.2.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "multer": "^2.0.2",
+    "papaparse": "^5.5.3",
+    "xlsx": "^0.18.5",
+    "xml2js": "^0.6.2"
+  }
+}

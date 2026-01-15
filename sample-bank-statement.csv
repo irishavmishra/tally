@@ -1,0 +1,11 @@
+Date,Description,Debit,Credit,Balance
+15/01/2026,Opening Balance,0,50000,50000
+15/01/2026,Salary Credit,0,75000,125000
+15/01/2026,Rent Payment,15000,0,110000
+15/01/2026,Electricity Bill,2500,0,107500
+15/01/2026,Mobile Recharge,599,0,106901
+15/01/2026,ATM Withdrawal,10000,0,96901
+15/01/2026,Online Purchase - Amazon,3500,0,93401
+15/01/2026,Interest Credit,0,450,93851
+15/01/2026,Bank Charges,150,0,93701
+15/01/2026,NEFT Transfer,5000,0,88701
