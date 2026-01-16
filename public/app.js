@@ -618,6 +618,164 @@ async function importBankStatement() {
     }
 }
 
+// Preview PDF Bank Statement with OCR
+async function previewPDFStatement() {
+    const file = document.getElementById('pdfBankStatementFile').files[0];
+
+    if (!file) {
+        showAlert('Please select a PDF file', 'error');
+        return;
+    }
+
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+        showAlert('Only PDF files are allowed', 'error');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('bankStatement', file);
+
+    const resultsContainer = document.getElementById('bankStatementResults');
+    resultsContainer.innerHTML = '<div class="spinner"></div><p style="text-align: center; color: var(--text-secondary); margin-top: 1rem;">PDF parse ho raha hai... OCR me time lag sakta hai</p>';
+
+    try {
+        const response = await fetch('/api/bank-statement/pdf-preview', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            const txns = data.data.transactions;
+            const summary = data.data.summary;
+
+            let txnHTML = '';
+            txns.slice(0, 15).forEach((txn, index) => {
+                txnHTML += `
+                    <div style="background: var(--bg-primary); padding: 0.75rem; border-radius: var(--radius-sm); margin-bottom: 0.5rem; border: 1px solid var(--border-color);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                            <span style="font-weight: 500; color: ${txn.debit > 0 ? 'var(--error)' : 'var(--success)'};">${txn.transactionType}</span>
+                            <span style="color: var(--text-secondary); font-size: 0.85rem;">${txn.date}</span>
+                        </div>
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">${txn.description}</div>
+                        <div style="font-weight: 600; text-align: right;">₹${txn.amount.toFixed(2)}</div>
+                    </div>
+                `;
+            });
+
+            resultsContainer.innerHTML = `
+                <div class="alert alert-success">
+                    <span>PDF parsed: ${data.data.transactionCount} transactions found</span>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin: 1rem 0;">
+                    <div style="background: rgba(255, 59, 48, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.25rem; color: var(--error); font-weight: 600;">${summary.payments}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Payments (Dr)</div>
+                    </div>
+                    <div style="background: rgba(52, 199, 89, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.25rem; color: var(--success); font-weight: 600;">${summary.receipts}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Receipts (Cr)</div>
+                    </div>
+                </div>
+                <h4 style="margin: 1rem 0 0.5rem;">Transactions Preview (first 15):</h4>
+                ${txnHTML}
+                ${txns.length > 15 ? `<p class="text-muted" style="text-align: center;">... and ${txns.length - 15} more</p>` : ''}
+            `;
+
+            showAlert(`PDF parsed: ${txns.length} transactions found`, 'success');
+        } else {
+            resultsContainer.innerHTML = `<div class="alert alert-error"><span>Error: ${data.error}</span></div>`;
+            showAlert(`PDF parsing failed: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        resultsContainer.innerHTML = '';
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+}
+
+// Import PDF Bank Statement to Tally (Suspense Ledger)
+async function importPDFStatement() {
+    const file = document.getElementById('pdfBankStatementFile').files[0];
+    const companyName = document.getElementById('bankCompany').value;
+    const bankLedgerName = document.getElementById('bankLedgerName').value;
+    const suspenseLedger = document.getElementById('suspenseLedger').value;
+
+    if (!file) {
+        showAlert('Please select a PDF file', 'error');
+        return;
+    }
+
+    if (!companyName) {
+        showAlert('Please enter company name', 'error');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to import PDF bank statement to Tally?\n\nCompany: ${companyName}\nAll entries will go to: ${suspenseLedger}`)) {
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('bankStatement', file);
+    formData.append('companyName', companyName);
+    formData.append('bankLedgerName', bankLedgerName);
+    formData.append('suspenseLedger', suspenseLedger);
+
+    const resultsContainer = document.getElementById('bankStatementResults');
+    resultsContainer.innerHTML = '<div class="spinner"></div><p style="text-align: center; color: var(--text-secondary); margin-top: 1rem;">PDF import ho raha hai Tally me...</p>';
+
+    try {
+        const response = await fetch('/api/bank-statement/pdf-import', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            const summary = data.data.summary;
+
+            resultsContainer.innerHTML = `
+                <div class="alert alert-success">
+                    <span>PDF Import Complete: ${summary.successful}/${summary.total} vouchers created → ${data.data.suspenseLedger}</span>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin: 1.5rem 0;">
+                    <div style="background: rgba(52, 199, 89, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.25rem; color: var(--success); font-weight: 600;">${summary.successful}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Successful</div>
+                    </div>
+                    <div style="background: rgba(255, 59, 48, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.25rem; color: var(--error); font-weight: 600;">${summary.failed}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Failed</div>
+                    </div>
+                    <div style="background: rgba(255, 149, 0, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.25rem; color: var(--warning); font-weight: 600;">${summary.payments}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Payments</div>
+                    </div>
+                    <div style="background: rgba(0, 113, 227, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.25rem; color: var(--primary); font-weight: 600;">${summary.receipts}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Receipts</div>
+                    </div>
+                </div>
+                ${data.data.errors.length > 0 ? `
+                    <details style="margin-top: 1rem;">
+                        <summary style="color: var(--error); cursor: pointer;">View Errors (${data.data.errors.length})</summary>
+                        <pre class="code-block" style="max-height: 300px;">${JSON.stringify(data.data.errors, null, 2)}</pre>
+                    </details>
+                ` : ''}
+            `;
+
+            showAlert(`Successfully imported ${summary.successful} entries to ${suspenseLedger}`, 'success');
+        } else {
+            resultsContainer.innerHTML = `<div class="alert alert-error"><span>Import Failed: ${data.error}</span></div>`;
+            showAlert(`Import failed: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        resultsContainer.innerHTML = '';
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+}
+
 // Create single ledger transfer
 async function createSingleTransfer(event) {
     event.preventDefault();

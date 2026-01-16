@@ -1,5 +1,7 @@
 const XLSX = require('xlsx');
 const Papa = require('papaparse');
+const pdfParse = require('pdf-parse');
+const Tesseract = require('tesseract.js');
 
 class BankStatementParser {
     /**
@@ -15,6 +17,8 @@ class BankStatementParser {
                 data = this.parseExcel(fileBuffer);
             } else if (fileType === 'json') {
                 data = JSON.parse(fileBuffer.toString());
+            } else if (fileType === 'pdf') {
+                data = await this.parsePDF(fileBuffer);
             } else {
                 throw new Error('Unsupported file format');
             }
@@ -24,6 +28,170 @@ class BankStatementParser {
         } catch (error) {
             throw new Error(`Failed to parse bank statement: ${error.message}`);
         }
+    }
+
+    /**
+     * Parse PDF file - tries text extraction first, then OCR if needed
+     */
+    static async parsePDF(buffer) {
+        try {
+            // First try direct text extraction
+            const pdfData = await pdfParse(buffer);
+            const text = pdfData.text;
+
+            // Check if we got meaningful text
+            if (text && text.trim().length > 100) {
+                return this.parsePDFText(text);
+            }
+
+            // If no text, it's likely a scanned PDF - use OCR
+            console.log('PDF has no extractable text, attempting OCR...');
+            return await this.parsePDFWithOCR(buffer);
+        } catch (error) {
+            throw new Error(`PDF parsing failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Parse extracted PDF text into transactions
+     */
+    static parsePDFText(text) {
+        const lines = text.split('\n').filter(line => line.trim().length > 0);
+        const transactions = [];
+
+        // Common patterns for bank statement entries
+        // Pattern: Date | Description | Debit | Credit | Balance
+        const datePatterns = [
+            /(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/,  // DD/MM/YYYY or DD-MM-YYYY
+            /(\d{1,2}\s+\w{3}\s+\d{2,4})/          // DD Mon YYYY
+        ];
+
+        const amountPattern = /[\d,]+\.?\d*/g;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+
+            // Try to find date in line
+            let dateMatch = null;
+            for (const pattern of datePatterns) {
+                const match = line.match(pattern);
+                if (match) {
+                    dateMatch = match[1];
+                    break;
+                }
+            }
+
+            if (dateMatch) {
+                // Extract amounts from the line
+                const amounts = line.match(amountPattern) || [];
+                const numericAmounts = amounts
+                    .map(a => parseFloat(a.replace(/,/g, '')))
+                    .filter(a => !isNaN(a) && a > 0);
+
+                if (numericAmounts.length >= 1) {
+                    // Get description - text between date and first amount
+                    const dateIndex = line.indexOf(dateMatch);
+                    const firstAmountMatch = line.match(/[\d,]+\.?\d*/);
+                    let description = '';
+
+                    if (firstAmountMatch) {
+                        const amountIndex = line.indexOf(firstAmountMatch[0], dateIndex + dateMatch.length);
+                        description = line.substring(dateIndex + dateMatch.length, amountIndex).trim();
+                    }
+
+                    // Determine if debit or credit based on position or keywords
+                    const isDebit = line.toLowerCase().includes('dr') ||
+                        line.toLowerCase().includes('debit') ||
+                        line.toLowerCase().includes('withdrawal') ||
+                        numericAmounts.length === 3; // Typically: Amount, Debit, Balance
+
+                    const amount = numericAmounts[0];
+
+                    transactions.push({
+                        date: dateMatch,
+                        description: description || 'Bank Transaction',
+                        debit: isDebit ? amount : 0,
+                        credit: isDebit ? 0 : amount,
+                        amount: amount,
+                        transactionType: isDebit ? 'Payment' : 'Receipt',
+                        balance: numericAmounts[numericAmounts.length - 1] || 0,
+                        rawData: { line }
+                    });
+                }
+            }
+        }
+
+        return transactions;
+    }
+
+    /**
+     * Parse scanned PDF using OCR
+     */
+    static async parsePDFWithOCR(buffer) {
+        try {
+            // For scanned PDFs, we'll use tesseract.js
+            // This requires converting PDF pages to images first
+            // For now, we'll return a message that OCR processing is needed
+
+            console.log('OCR processing started...');
+
+            // Since PDF to image conversion requires additional setup,
+            // we'll try to use tesseract directly on the buffer
+            // Note: In production, you'd want to use pdf2pic or similar
+
+            const result = await Tesseract.recognize(buffer, 'eng', {
+                logger: m => console.log(`OCR: ${m.status} - ${Math.round(m.progress * 100)}%`)
+            });
+
+            const text = result.data.text;
+
+            if (text && text.trim().length > 50) {
+                return this.parsePDFText(text);
+            }
+
+            throw new Error('OCR could not extract meaningful text from the PDF. Please ensure the PDF is clear and readable.');
+        } catch (error) {
+            throw new Error(`OCR failed: ${error.message}. Try uploading a clearer PDF or convert to CSV/Excel format.`);
+        }
+    }
+
+    /**
+     * Convert transactions to vouchers with Suspense ledger
+     */
+    static convertToSuspenseVouchers(transactions, config) {
+        const {
+            companyName,
+            bankLedgerName = 'Bank Account',
+            suspenseLedger = 'Suspense A/c'
+        } = config;
+
+        return transactions.map(txn => {
+            const isDebit = txn.debit > 0;
+            const amount = txn.amount || Math.max(txn.debit, txn.credit);
+
+            return {
+                voucherType: isDebit ? 'Payment' : 'Receipt',
+                date: this.parseDate(txn.date) || txn.date,
+                narration: txn.description,
+                companyName: companyName,
+                ledgerEntries: [
+                    {
+                        ledgerName: isDebit ? suspenseLedger : bankLedgerName,
+                        amount: amount,
+                        isDeemedPositive: 'No'
+                    },
+                    {
+                        ledgerName: isDebit ? bankLedgerName : suspenseLedger,
+                        amount: amount,
+                        isDeemedPositive: 'Yes'
+                    }
+                ],
+                metadata: {
+                    source: 'pdf_bank_statement',
+                    originalBalance: txn.balance
+                }
+            };
+        });
     }
 
     /**

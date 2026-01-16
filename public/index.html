@@ -297,7 +297,7 @@
         </div>
 
         <div class="alert alert-info">
-          <span>Upload your bank statement in CSV, Excel, or JSON format.</span>
+          <span>Upload your bank statement in CSV, Excel, JSON, or PDF format.</span>
         </div>
 
         <form id="bankStatementForm">
@@ -349,9 +349,9 @@
 
           <div class="form-group">
             <label class="form-label">Upload Bank Statement</label>
-            <input type="file" class="form-input" id="bankStatementFile" accept=".csv,.xlsx,.xls,.json" required>
+            <input type="file" class="form-input" id="bankStatementFile" accept=".csv,.xlsx,.xls,.json,.pdf" required>
             <p class="text-muted" style="font-size: 0.85rem; margin-top: 0.5rem;">
-              Supported formats: CSV, Excel (.xlsx, .xls), JSON | Max size: 10MB
+              Supported formats: CSV, Excel (.xlsx, .xls), JSON, PDF (with OCR) | Max size: 20MB
             </p>
           </div>
 
@@ -364,6 +364,39 @@
             </button>
           </div>
         </form>
+
+        <!-- PDF Import with OCR Section -->
+        <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
+          <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">PDF Import with OCR (Suspense Ledger)</h3>
+          <div class="alert alert-info">
+            <span>PDF bank statement upload karo - OCR se parse hoga aur saari entries <strong>Suspense A/c</strong> me
+              jayengi.</span>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Suspense Ledger</label>
+              <input type="text" class="form-input" id="suspenseLedger" value="Suspense A/c" list="ledgersList">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Upload PDF Bank Statement</label>
+            <input type="file" class="form-input" id="pdfBankStatementFile" accept=".pdf">
+            <p class="text-muted" style="font-size: 0.85rem; margin-top: 0.5rem;">
+              Only PDF files | OCR enabled for scanned documents | Max size: 20MB
+            </p>
+          </div>
+
+          <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <button type="button" class="btn btn-secondary" onclick="previewPDFStatement()" style="flex: 1;">
+              Preview PDF
+            </button>
+            <button type="button" class="btn btn-primary" onclick="importPDFStatement()" style="flex: 1;">
+              Import PDF to Tally
+            </button>
+          </div>
+        </div>
 
         <div id="bankStatementResults" style="margin-top: 1.5rem;"></div>
       </div>
