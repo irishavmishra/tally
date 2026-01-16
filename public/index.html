@@ -4,21 +4,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tally Automation - Advanced Accounting Entry System</title>
-  <meta name="description"
-    content="Automate your Tally accounting entries with our advanced API-powered system. Create vouchers, manage ledgers, and streamline your accounting workflow.">
+  <title>Tally Automation</title>
+  <meta name="description" content="Automate your Tally accounting entries with our advanced API-powered system.">
   <link rel="stylesheet" href="styles.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
 
 <body>
   <div class="container">
     <!-- Header -->
     <header class="header">
-      <h1>🚀 Tally Automation</h1>
-      <p>Advanced Accounting Entry System - Powered by Tally API</p>
+      <h1>Tally Automation</h1>
+      <p>Advanced Accounting Entry System</p>
     </header>
 
     <!-- Connection Status -->
@@ -28,30 +24,31 @@
         <span id="statusText">Checking connection...</span>
       </div>
       <button class="btn btn-secondary" onclick="testConnection()">
-        <span>🔄</span>
-        <span>Test Connection</span>
+        Test Connection
       </button>
     </div>
 
     <!-- Alert Container -->
     <div id="alertContainer"></div>
 
+    <!-- Global Ledger Datalist for Autocomplete -->
+    <datalist id="ledgersList"></datalist>
+
     <!-- Main Navigation Tabs -->
     <div class="tabs">
-      <button class="tab active" onclick="switchTab('voucher')">📝 Create Voucher</button>
-      <button class="tab" onclick="switchTab('ledger')">📊 Create Ledger</button>
-      <button class="tab" onclick="switchTab('transfer')">🔄 Ledger Transfer</button>
-      <button class="tab" onclick="switchTab('bank')">🏦 Bank Statement</button>
-      <button class="tab" onclick="switchTab('bulk')">📦 Bulk Import</button>
-      <button class="tab" onclick="switchTab('view')">👁️ View Data</button>
+      <button class="tab active" onclick="switchTab('voucher')">Create Voucher</button>
+      <button class="tab" onclick="switchTab('ledger')">Create Ledger</button>
+      <button class="tab" onclick="switchTab('transfer')">Ledger Transfer</button>
+      <button class="tab" onclick="switchTab('bank')">Bank Statement</button>
+      <button class="tab" onclick="switchTab('bulk')">Bulk Import</button>
+      <button class="tab" onclick="switchTab('view')">View Data</button>
     </div>
 
     <!-- Tab Content: Create Voucher -->
     <div id="voucherTab" class="tab-content active">
       <div class="card">
         <div class="card-header">
-          <div class="card-icon">📝</div>
-          <h2 class="card-title">Create Accounting Voucher</h2>
+          <h2 class="card-title">Create Voucher</h2>
         </div>
 
         <form id="voucherForm" onsubmit="createVoucher(event)">
@@ -93,10 +90,9 @@
 
           <div class="ledger-entries">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-              <h3 style="color: var(--primary);">Ledger Entries</h3>
+              <h3 style="font-size: 1.1rem; font-weight: 600;">Ledger Entries</h3>
               <button type="button" class="btn btn-secondary" onclick="addLedgerEntry()">
-                <span>➕</span>
-                <span>Add Entry</span>
+                Add Entry
               </button>
             </div>
             <div id="ledgerEntriesContainer">
@@ -105,8 +101,7 @@
           </div>
 
           <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">
-            <span>✨</span>
-            <span>Create Voucher in Tally</span>
+            Create Voucher
           </button>
         </form>
       </div>
@@ -116,8 +111,7 @@
     <div id="ledgerTab" class="tab-content">
       <div class="card">
         <div class="card-header">
-          <div class="card-icon">📊</div>
-          <h2 class="card-title">Create New Ledger</h2>
+          <h2 class="card-title">Create Ledger</h2>
         </div>
 
         <form id="ledgerForm" onsubmit="createLedger(event)">
@@ -161,8 +155,7 @@
           </div>
 
           <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">
-            <span>✨</span>
-            <span>Create Ledger in Tally</span>
+            Create Ledger
           </button>
         </form>
       </div>
@@ -172,18 +165,15 @@
     <div id="transferTab" class="tab-content">
       <div class="card">
         <div class="card-header">
-          <div class="card-icon">🔄</div>
-          <h2 class="card-title">Transfer Entries Between Ledgers</h2>
+          <h2 class="card-title">Ledger Transfer</h2>
         </div>
 
-        <div class="alert alert-info" style="margin-bottom: 1.5rem;">
-          <span>ℹ️</span>
-          <span>Transfer amounts from one ledger to another by creating journal entries. Useful for reclassifying
-            transactions or correcting ledger assignments.</span>
+        <div class="alert alert-info">
+          <span>Transfer amounts from one ledger to another by creating journal entries.</span>
         </div>
 
         <!-- Single Transfer -->
-        <h3 style="color: var(--primary); margin-bottom: 1rem;">Single Transfer</h3>
+        <h3 style="margin-bottom: 1rem; margin-top: 1.5rem; font-size: 1.1rem;">Single Transfer</h3>
         <form id="singleTransferForm" onsubmit="createSingleTransfer(event)">
           <div class="form-group">
             <label class="form-label">Company Name</label>
@@ -193,12 +183,13 @@
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">From Ledger</label>
-              <input type="text" class="form-input" id="fromLedger" placeholder="e.g., Miscellaneous Expenses" required>
+              <input type="text" class="form-input" id="fromLedger" placeholder="e.g., Miscellaneous Expenses"
+                list="ledgersList" required>
             </div>
 
             <div class="form-group">
               <label class="form-label">To Ledger</label>
-              <input type="text" class="form-input" id="toLedger" placeholder="e.g., Rent" required>
+              <input type="text" class="form-input" id="toLedger" placeholder="e.g., Rent" list="ledgersList" required>
             </div>
 
             <div class="form-group">
@@ -220,67 +211,81 @@
           </div>
 
           <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
-            <span>🔄</span>
-            <span>Create Transfer Entry</span>
+            Create Transfer Entry
           </button>
         </form>
 
         <!-- Bulk Transfer -->
-        <h3 style="color: var(--primary); margin: 2rem 0 1rem;">Bulk Transfer</h3>
+        <h3 style="margin: 2rem 0 1rem; font-size: 1.1rem;">Bulk Transfer</h3>
         <div class="form-group">
           <label class="form-label">Paste JSON Data</label>
           <textarea class="form-textarea" id="bulkTransferJson"
-            placeholder='[{"fromLedger":"Old Ledger","toLedger":"New Ledger","amount":1000,"date":"20260115","narration":"Transfer"}]'
-            style="min-height: 200px;"></textarea>
-          <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem;">
+            placeholder='[{"fromLedger":"Old Ledger","toLedger":"New Ledger","amount":1000,"date":"20260115","narration":"Transfer"}]'></textarea>
+          <p class="text-muted" style="font-size: 0.85rem; margin-top: 0.5rem;">
             Format: Array of transfer objects with fromLedger, toLedger, amount, date, and narration
           </p>
         </div>
 
-        <button class="btn btn-primary" onclick="processBulkTransfers()" style="width: 100%;">
-          <span>🚀</span>
-          <span>Process Bulk Transfers</span>
+        <button class="btn btn-secondary" onclick="processBulkTransfers()" style="width: 100%;">
+          Process Bulk Transfers
         </button>
 
+        <!-- Entry-Based Transfer Section -->
+        <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--border-color);">
+          <h3 style="margin-bottom: 1rem; font-size: 1.1rem;">Entry-Based Transfer</h3>
+          <div class="alert alert-info">
+            <span>Select source ledger ki entries load karo, checkbox se select karo, aur target ledger me transfer
+              karo.</span>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Source Ledger</label>
+              <input type="text" class="form-input" id="sourceLedger" placeholder="e.g., Miscellaneous Expenses"
+                list="ledgersList">
+            </div>
+            <div class="form-group">
+              <label class="form-label">From Date (YYYYMMDD)</label>
+              <input type="text" class="form-input" id="entryFromDate" placeholder="20260101">
+            </div>
+            <div class="form-group">
+              <label class="form-label">To Date (YYYYMMDD)</label>
+              <input type="text" class="form-input" id="entryToDate" placeholder="20261231">
+            </div>
+          </div>
+
+          <button class="btn btn-secondary" onclick="loadLedgerEntries()" style="width: 100%; margin-bottom: 1rem;">
+            Load Entries
+          </button>
+
+          <!-- Entries Table Container -->
+          <div id="entriesTableContainer" style="display: none; margin: 1rem 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                <input type="checkbox" id="selectAllEntries" onchange="toggleSelectAllEntries()">
+                <span>Select All</span>
+              </label>
+              <span id="selectedCount" style="color: var(--text-secondary); font-size: 0.9rem;">0 selected</span>
+            </div>
+            <div id="entriesTable"
+              style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+              <!-- Entries will be loaded here -->
+            </div>
+          </div>
+
+          <!-- Transfer Target -->
+          <div id="transferTargetContainer" style="display: none; margin-top: 1rem;">
+            <div class="form-group">
+              <label class="form-label">Target Ledger (jisme transfer karna hai)</label>
+              <input type="text" class="form-input" id="targetLedger" placeholder="e.g., Rent" list="ledgersList">
+            </div>
+            <button class="btn btn-primary" onclick="transferSelectedEntries()" style="width: 100%;">
+              Transfer Selected Entries
+            </button>
+          </div>
+        </div>
+
         <div id="transferResults" style="margin-top: 1.5rem;"></div>
-      </div>
-
-      <!-- Info Card -->
-      <div class="card" style="margin-top: 1.5rem;">
-        <div class="card-header">
-          <div class="card-icon">💡</div>
-          <h2 class="card-title">How It Works</h2>
-        </div>
-
-        <div style="color: var(--text-secondary); line-height: 1.8;">
-          <h3 style="color: var(--primary); margin-bottom: 0.5rem;">What is Ledger Transfer?</h3>
-          <p style="margin-bottom: 1rem;">Ledger transfer creates journal entries to move amounts from one ledger to
-            another. This is useful when you need to reclassify expenses, correct ledger assignments, or reorganize your
-            chart of accounts.</p>
-
-          <h3 style="color: var(--primary); margin-bottom: 0.5rem;">Example Use Cases:</h3>
-          <ul style="margin-bottom: 1rem; padding-left: 1.5rem;">
-            <li>Move expenses from "Miscellaneous" to specific categories</li>
-            <li>Reclassify transactions after bank reconciliation</li>
-            <li>Correct ledger assignments from bulk imports</li>
-            <li>Reorganize chart of accounts</li>
-          </ul>
-
-          <h3 style="color: var(--primary); margin-bottom: 0.5rem;">Journal Entry Created:</h3>
-          <div
-            style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-sm); font-family: monospace; font-size: 0.875rem;">
-            <div>Voucher Type: Journal</div>
-            <div>Dr: To Ledger - ₹Amount</div>
-            <div>Cr: From Ledger - ₹Amount</div>
-          </div>
-
-          <div
-            style="background: rgba(245, 158, 11, 0.1); padding: 1rem; border-radius: var(--radius-sm); margin-top: 1rem;">
-            <strong style="color: var(--warning);">⚠️ Important:</strong>
-            <p style="margin-top: 0.5rem;">This creates new journal entries. It does not modify existing vouchers. Make
-              sure both ledgers exist in Tally before transferring.</p>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -288,14 +293,11 @@
     <div id="bankTab" class="tab-content">
       <div class="card">
         <div class="card-header">
-          <div class="card-icon">🏦</div>
           <h2 class="card-title">Import Bank Statement</h2>
         </div>
 
-        <div class="alert alert-info" style="margin-bottom: 1.5rem;">
-          <span>ℹ️</span>
-          <span>Upload your bank statement in CSV, Excel, or JSON format. The system will automatically parse and create
-            vouchers in Tally.</span>
+        <div class="alert alert-info">
+          <span>Upload your bank statement in CSV, Excel, or JSON format.</span>
         </div>
 
         <form id="bankStatementForm">
@@ -319,19 +321,21 @@
             <div class="form-group">
               <label class="form-label">Bank Ledger Name</label>
               <input type="text" class="form-input" id="bankLedgerName" placeholder="e.g., HDFC Bank"
-                value="Bank Account">
+                value="Bank Account" list="ledgersList">
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
               <label class="form-label">Default Expense Ledger</label>
-              <input type="text" class="form-input" id="defaultExpenseLedger" value="Miscellaneous Expenses">
+              <input type="text" class="form-input" id="defaultExpenseLedger" value="Miscellaneous Expenses"
+                list="ledgersList">
             </div>
 
             <div class="form-group">
               <label class="form-label">Default Income Ledger</label>
-              <input type="text" class="form-input" id="defaultIncomeLedger" value="Miscellaneous Income">
+              <input type="text" class="form-input" id="defaultIncomeLedger" value="Miscellaneous Income"
+                list="ledgersList">
             </div>
 
             <div class="form-group">
@@ -346,56 +350,22 @@
           <div class="form-group">
             <label class="form-label">Upload Bank Statement</label>
             <input type="file" class="form-input" id="bankStatementFile" accept=".csv,.xlsx,.xls,.json" required>
-            <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem;">
+            <p class="text-muted" style="font-size: 0.85rem; margin-top: 0.5rem;">
               Supported formats: CSV, Excel (.xlsx, .xls), JSON | Max size: 10MB
             </p>
           </div>
 
           <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
             <button type="button" class="btn btn-secondary" onclick="previewBankStatement()" style="flex: 1;">
-              <span>👁️</span>
-              <span>Preview Transactions</span>
+              Preview Transactions
             </button>
             <button type="button" class="btn btn-primary" onclick="importBankStatement()" style="flex: 1;">
-              <span>🚀</span>
-              <span>Import to Tally</span>
+              Import to Tally
             </button>
           </div>
         </form>
 
         <div id="bankStatementResults" style="margin-top: 1.5rem;"></div>
-      </div>
-
-      <!-- Info Card -->
-      <div class="card" style="margin-top: 1.5rem;">
-        <div class="card-header">
-          <div class="card-icon">💡</div>
-          <h2 class="card-title">How It Works</h2>
-        </div>
-
-        <div style="color: var(--text-secondary); line-height: 1.8;">
-          <h3 style="color: var(--primary); margin-bottom: 0.5rem;">Step 1: Download Statement</h3>
-          <p style="margin-bottom: 1rem;">Download your bank statement from your bank's website in CSV or Excel format.
-          </p>
-
-          <h3 style="color: var(--primary); margin-bottom: 0.5rem;">Step 2: Upload File</h3>
-          <p style="margin-bottom: 1rem;">Select your bank type and upload the statement file. The system will
-            automatically detect the format.</p>
-
-          <h3 style="color: var(--primary); margin-bottom: 0.5rem;">Step 3: Preview</h3>
-          <p style="margin-bottom: 1rem;">Click "Preview" to see how transactions will be categorized and converted to
-            vouchers.</p>
-
-          <h3 style="color: var(--primary); margin-bottom: 0.5rem;">Step 4: Import</h3>
-          <p style="margin-bottom: 1rem;">Click "Import to Tally" to automatically create all vouchers in Tally.</p>
-
-          <div
-            style="background: rgba(0, 212, 255, 0.1); padding: 1rem; border-radius: var(--radius-sm); margin-top: 1rem;">
-            <strong style="color: var(--primary);">Auto-Categorization:</strong>
-            <p style="margin-top: 0.5rem;">The system automatically categorizes transactions based on description
-              keywords (Salary, Rent, Utilities, etc.)</p>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -403,28 +373,22 @@
     <div id="bulkTab" class="tab-content">
       <div class="card">
         <div class="card-header">
-          <div class="card-icon">📦</div>
-          <h2 class="card-title">Bulk Voucher Import</h2>
+          <h2 class="card-title">Bulk Import</h2>
         </div>
 
         <div class="form-group">
           <label class="form-label">Upload CSV/JSON File</label>
           <input type="file" class="form-input" id="bulkFile" accept=".csv,.json">
-          <p style="color: var(--text-muted); font-size: 0.875rem; margin-top: 0.5rem;">
-            Upload a CSV or JSON file with multiple voucher entries for bulk processing.
-          </p>
         </div>
 
         <div class="form-group">
           <label class="form-label">Or Paste JSON Data</label>
           <textarea class="form-textarea" id="bulkJson"
-            placeholder='[{"voucherType":"Journal","date":"20260115","companyName":"ABC Ltd","narration":"Test","ledgerEntries":[...]}]'
-            style="min-height: 200px;"></textarea>
+            placeholder='[{"voucherType":"Journal","date":"20260115","companyName":"ABC Ltd","narration":"Test","ledgerEntries":[...]}]'></textarea>
         </div>
 
         <button class="btn btn-primary" onclick="processBulkVouchers()" style="width: 100%;">
-          <span>🚀</span>
-          <span>Process Bulk Vouchers</span>
+          Process Bulk Vouchers
         </button>
 
         <div id="bulkResults" style="margin-top: 1.5rem;"></div>
@@ -433,33 +397,27 @@
 
     <!-- Tab Content: View Data -->
     <div id="viewTab" class="tab-content">
-      <div class="grid">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-icon">🏢</div>
-            <h2 class="card-title">Companies</h2>
-          </div>
-          <button class="btn btn-secondary" onclick="loadCompanies()" style="width: 100%;">
-            <span>🔄</span>
-            <span>Load Companies</span>
-          </button>
-          <div id="companiesList" style="margin-top: 1rem;"></div>
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Companies</h2>
         </div>
+        <button class="btn btn-secondary" onclick="loadCompanies()" style="width: 100%;">
+          Load Companies
+        </button>
+        <div id="companiesList" style="margin-top: 1rem;"></div>
+      </div>
 
-        <div class="card">
-          <div class="card-header">
-            <div class="card-icon">📋</div>
-            <h2 class="card-title">Ledgers</h2>
-          </div>
-          <div class="form-group">
-            <input type="text" class="form-input" id="viewLedgerCompany" placeholder="Enter company name">
-          </div>
-          <button class="btn btn-secondary" onclick="loadLedgers()" style="width: 100%;">
-            <span>🔄</span>
-            <span>Load Ledgers</span>
-          </button>
-          <div id="ledgersList" style="margin-top: 1rem;"></div>
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Ledgers</h2>
         </div>
+        <div class="form-group">
+          <input type="text" class="form-input" id="viewLedgerCompany" placeholder="Enter company name">
+        </div>
+        <button class="btn btn-secondary" onclick="loadLedgers()" style="width: 100%;">
+          Load Ledgers
+        </button>
+        <div id="ledgersList" style="margin-top: 1rem;"></div>
       </div>
     </div>
   </div>

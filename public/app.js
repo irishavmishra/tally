@@ -1,5 +1,7 @@
 // Global state
 let ledgerEntryCount = 0;
+let cachedLedgers = [];
+let lastFetchedCompany = '';
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -7,7 +9,75 @@ document.addEventListener('DOMContentLoaded', () => {
     addLedgerEntry();
     addLedgerEntry();
     setTodayDate();
+    setupCompanyInputListeners();
 });
+
+// Setup listeners on all company input fields to fetch ledgers
+function setupCompanyInputListeners() {
+    const companyInputs = [
+        'voucherCompany',
+        'ledgerCompany',
+        'transferCompany',
+        'bankCompany',
+        'viewLedgerCompany'
+    ];
+
+    companyInputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('blur', () => fetchLedgersForDropdown(input.value));
+            input.addEventListener('change', () => fetchLedgersForDropdown(input.value));
+        }
+    });
+}
+
+// Fetch ledgers from Tally and populate dropdown
+async function fetchLedgersForDropdown(companyName) {
+    if (!companyName || companyName === lastFetchedCompany) {
+        return;
+    }
+
+    lastFetchedCompany = companyName;
+
+    try {
+        const response = await fetch('/api/tally/ledgers', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ companyName })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Parse ledgers from response
+            let ledgers = [];
+            if (data.data && data.data.ENVELOPE && data.data.ENVELOPE.BODY) {
+                const body = data.data.ENVELOPE.BODY;
+                if (body.DATA && body.DATA.COLLECTION) {
+                    let ledgerList = body.DATA.COLLECTION.LEDGER;
+                    if (ledgerList) {
+                        if (!Array.isArray(ledgerList)) {
+                            ledgerList = [ledgerList];
+                        }
+                        ledgers = ledgerList.map(l => l.NAME || l.$.NAME || l);
+                    }
+                }
+            }
+
+            cachedLedgers = ledgers;
+
+            // Populate datalist
+            const datalist = document.getElementById('ledgersList');
+            datalist.innerHTML = ledgers.map(name => `<option value="${name}">`).join('');
+
+            showAlert(`Loaded ${ledgers.length} ledgers from "${companyName}"`, 'success');
+        }
+    } catch (error) {
+        console.error('Failed to fetch ledgers:', error);
+    }
+}
 
 // Set today's date in YYYYMMDD format
 function setTodayDate() {
@@ -27,21 +97,23 @@ function setTodayDate() {
 
 // Tab switching
 function switchTab(tabName) {
-    // Hide all tabs
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.remove('active');
     });
 
-    // Remove active class from all tab buttons
     document.querySelectorAll('.tab').forEach(btn => {
         btn.classList.remove('active');
     });
 
-    // Show selected tab
-    document.getElementById(`${tabName}Tab`).classList.add('active');
+    const targetTab = document.getElementById(`${tabName}Tab`);
+    if (targetTab) {
+        targetTab.classList.add('active');
+    }
 
-    // Add active class to clicked tab button
-    event.target.classList.add('active');
+    // Add active class to clicked tab button (handling if event is passed)
+    if (event && event.target) {
+        event.target.classList.add('active');
+    }
 }
 
 // Test Tally connection
@@ -58,8 +130,8 @@ async function testConnection() {
 
         if (data.success) {
             statusDot.className = 'status-dot connected';
-            statusText.textContent = 'Connected to Tally';
-            showAlert('Successfully connected to Tally!', 'success');
+            statusText.textContent = 'Connected';
+            showAlert('Successfully connected to Tally', 'success');
         } else {
             statusDot.className = 'status-dot disconnected';
             statusText.textContent = 'Connection failed';
@@ -68,7 +140,7 @@ async function testConnection() {
     } catch (error) {
         statusDot.className = 'status-dot disconnected';
         statusText.textContent = 'Connection error';
-        showAlert(`Error: ${error.message}. Make sure the server is running.`, 'error');
+        showAlert(`Error: ${error.message}. Is the server running?`, 'error');
     }
 }
 
@@ -77,15 +149,20 @@ function showAlert(message, type = 'info') {
     const alertContainer = document.getElementById('alertContainer');
     const alert = document.createElement('div');
     alert.className = `alert alert-${type}`;
+    // types: success, error, info
+    const icon = type === 'success' ? '✓' : type === 'error' ? '!' : 'i';
+
     alert.innerHTML = `
-    <span>${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span>
+    <span style="font-weight:bold">${icon}</span>
     <span>${message}</span>
   `;
 
     alertContainer.appendChild(alert);
 
     setTimeout(() => {
-        alert.style.animation = 'fadeOut 0.3s ease';
+        alert.style.opacity = '0';
+        alert.style.transform = 'translateY(-10px)';
+        alert.style.transition = 'all 0.3s ease';
         setTimeout(() => alert.remove(), 300);
     }, 5000);
 }
@@ -100,15 +177,15 @@ function addLedgerEntry() {
     entry.id = `ledgerEntry${ledgerEntryCount}`;
     entry.innerHTML = `
     <div class="ledger-entry-header">
-      <span class="ledger-entry-title">Entry #${ledgerEntryCount}</span>
+      <span class="ledger-entry-title">Entry ${ledgerEntryCount}</span>
       <button type="button" class="btn-remove" onclick="removeLedgerEntry(${ledgerEntryCount})">
-        ❌ Remove
+        Remove
       </button>
     </div>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Ledger Name</label>
-        <input type="text" class="form-input" name="ledgerName${ledgerEntryCount}" placeholder="e.g., Cash" required>
+        <input type="text" class="form-input" name="ledgerName${ledgerEntryCount}" placeholder="e.g., Cash" list="ledgersList" required>
       </div>
       <div class="form-group">
         <label class="form-label">Amount</label>
@@ -131,7 +208,9 @@ function addLedgerEntry() {
 function removeLedgerEntry(id) {
     const entry = document.getElementById(`ledgerEntry${id}`);
     if (entry) {
-        entry.style.animation = 'fadeOut 0.3s ease';
+        entry.style.transition = 'all 0.3s ease';
+        entry.style.opacity = '0';
+        entry.style.transform = 'translateX(20px)';
         setTimeout(() => entry.remove(), 300);
     }
 }
@@ -166,7 +245,7 @@ async function createVoucher(event) {
     });
 
     if (ledgerEntries.length < 2) {
-        showAlert('At least 2 ledger entries are required!', 'error');
+        showAlert('At least 2 ledger entries are required', 'error');
         return;
     }
 
@@ -182,7 +261,7 @@ async function createVoucher(event) {
     });
 
     if (Math.abs(debitTotal - creditTotal) > 0.01) {
-        showAlert(`Voucher is not balanced! Debit: ${debitTotal.toFixed(2)}, Credit: ${creditTotal.toFixed(2)}`, 'error');
+        showAlert(`Unbalanced voucher! Dr: ${debitTotal.toFixed(2)}, Cr: ${creditTotal.toFixed(2)}`, 'error');
         return;
     }
 
@@ -207,7 +286,7 @@ async function createVoucher(event) {
         const data = await response.json();
 
         if (data.success) {
-            showAlert('✅ Voucher created successfully in Tally!', 'success');
+            showAlert('Voucher created successfully in Tally', 'success');
             document.getElementById('voucherForm').reset();
             document.getElementById('ledgerEntriesContainer').innerHTML = '';
             ledgerEntryCount = 0;
@@ -250,7 +329,7 @@ async function createLedger(event) {
         const data = await response.json();
 
         if (data.success) {
-            showAlert('✅ Ledger created successfully in Tally!', 'success');
+            showAlert('Ledger created successfully in Tally', 'success');
             document.getElementById('ledgerForm').reset();
         } else {
             showAlert(`Failed to create ledger: ${data.error}`, 'error');
@@ -270,9 +349,7 @@ async function loadCompanies() {
         const data = await response.json();
 
         if (data.success) {
-            container.innerHTML = '<pre style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-sm); overflow-x: auto; color: var(--text-secondary);">' +
-                JSON.stringify(data.data, null, 2) +
-                '</pre>';
+            container.innerHTML = `<pre class="code-block">${JSON.stringify(data.data, null, 2)}</pre>`;
         } else {
             container.innerHTML = `<p style="color: var(--error);">Error: ${data.error}</p>`;
         }
@@ -305,9 +382,7 @@ async function loadLedgers() {
         const data = await response.json();
 
         if (data.success) {
-            container.innerHTML = '<pre style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-sm); overflow-x: auto; color: var(--text-secondary);">' +
-                JSON.stringify(data.data, null, 2) +
-                '</pre>';
+            container.innerHTML = `<pre class="code-block">${JSON.stringify(data.data, null, 2)}</pre>`;
         } else {
             container.innerHTML = `<p style="color: var(--error);">Error: ${data.error}</p>`;
         }
@@ -327,7 +402,6 @@ async function processBulkVouchers() {
 
     try {
         const vouchers = JSON.parse(jsonData);
-
         if (!Array.isArray(vouchers)) {
             showAlert('JSON data must be an array of vouchers', 'error');
             return;
@@ -347,17 +421,16 @@ async function processBulkVouchers() {
             const resultsContainer = document.getElementById('bulkResults');
             resultsContainer.innerHTML = `
         <div class="alert alert-success">
-          <span>✅</span>
           <span>Processed ${data.summary.total} vouchers: ${data.summary.successful} successful, ${data.summary.failed} failed</span>
         </div>
-        <pre style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-sm); overflow-x: auto; color: var(--text-secondary); max-height: 400px;">${JSON.stringify(data, null, 2)}</pre>
+        <pre class="code-block" style="max-height: 400px;">${JSON.stringify(data, null, 2)}</pre>
       `;
 
             if (data.summary.successful > 0) {
-                showAlert(`Successfully created ${data.summary.successful} vouchers!`, 'success');
+                showAlert(`Successfully created ${data.summary.successful} vouchers`, 'success');
             }
             if (data.summary.failed > 0) {
-                showAlert(`${data.summary.failed} vouchers failed to create`, 'error');
+                showAlert(`${data.summary.failed} vouchers failed`, 'error');
             }
         } else {
             showAlert(`Bulk processing failed: ${data.error}`, 'error');
@@ -376,18 +449,15 @@ document.getElementById('bulkFile')?.addEventListener('change', async (event) =>
     reader.onload = (e) => {
         try {
             const content = e.target.result;
-
             if (file.name.endsWith('.json')) {
                 document.getElementById('bulkJson').value = content;
             } else if (file.name.endsWith('.csv')) {
-                // Simple CSV to JSON conversion (you can enhance this)
                 showAlert('CSV parsing not yet implemented. Please use JSON format.', 'error');
             }
         } catch (error) {
             showAlert(`Error reading file: ${error.message}`, 'error');
         }
     };
-
     reader.readAsText(file);
 });
 
@@ -427,15 +497,15 @@ async function previewBankStatement() {
             let vouchersHTML = '';
             vouchers.slice(0, 10).forEach((voucher, index) => {
                 vouchersHTML += `
-                    <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 0.5rem;">
+                    <div style="background: var(--bg-primary); padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 0.5rem; border: 1px solid var(--border-color);">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <strong style="color: var(--primary);">${voucher.voucherType} #${index + 1}</strong>
                             <span style="color: var(--text-secondary);">${voucher.date}</span>
                         </div>
-                        <div style="color: var(--text-secondary); font-size: 0.875rem;">
+                        <div style="color: var(--text-primary); font-size: 0.9rem; margin-bottom: 0.5rem;">
                             ${voucher.narration}
                         </div>
-                        <div style="display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.875rem;">
+                        <div style="display: flex; gap: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
                             <span>${voucher.ledgerEntries[0].ledgerName}: ₹${voucher.ledgerEntries[0].amount.toFixed(2)}</span>
                             <span>${voucher.ledgerEntries[1].ledgerName}: ₹${voucher.ledgerEntries[1].amount.toFixed(2)}</span>
                         </div>
@@ -445,22 +515,16 @@ async function previewBankStatement() {
 
             resultsContainer.innerHTML = `
                 <div class="alert alert-success">
-                    <span>✅</span>
                     <span>Preview: ${summary.payments} payments, ${summary.receipts} receipts | Total: ₹${summary.totalAmount.toFixed(2)}</span>
                 </div>
-                <h3 style="color: var(--primary); margin-bottom: 1rem;">Voucher Preview (showing first 10)</h3>
+                <h3 style="font-size: 1rem; margin-bottom: 1rem;">Voucher Preview (first 10)</h3>
                 ${vouchersHTML}
-                ${vouchers.length > 10 ? `<p style="color: var(--text-muted); text-align: center;">... and ${vouchers.length - 10} more vouchers</p>` : ''}
+                ${vouchers.length > 10 ? `<p class="text-muted" style="text-align: center; margin-top:1rem;">... and ${vouchers.length - 10} more vouchers</p>` : ''}
             `;
 
             showAlert(`Preview generated: ${data.data.voucherCount} vouchers ready to import`, 'success');
         } else {
-            resultsContainer.innerHTML = `
-                <div class="alert alert-error">
-                    <span>❌</span>
-                    <span>Error: ${data.error}</span>
-                </div>
-            `;
+            resultsContainer.innerHTML = `<div class="alert alert-error"><span>Error: ${data.error}</span></div>`;
             showAlert(`Preview failed: ${data.error}`, 'error');
         }
     } catch (error) {
@@ -484,7 +548,7 @@ async function importBankStatement() {
         return;
     }
 
-    if (!confirm(`Are you sure you want to import this bank statement to Tally?\n\nThis will create vouchers in: ${companyName}`)) {
+    if (!confirm(`Are you sure you want to import this bank statement to Tally?\n\nTarget Company: ${companyName}`)) {
         return;
     }
 
@@ -498,7 +562,7 @@ async function importBankStatement() {
     formData.append('autoCategorie', document.getElementById('autoCategorie').value);
 
     const resultsContainer = document.getElementById('bankStatementResults');
-    resultsContainer.innerHTML = '<div class="spinner"></div><p style="text-align: center; color: var(--text-secondary); margin-top: 1rem;">Importing to Tally... This may take a few moments.</p>';
+    resultsContainer.innerHTML = '<div class="spinner"></div><p style="text-align: center; color: var(--text-secondary); margin-top: 1rem;">Importing to Tally...</p>';
 
     try {
         const response = await fetch('/api/bank-statement/import', {
@@ -513,46 +577,39 @@ async function importBankStatement() {
 
             resultsContainer.innerHTML = `
                 <div class="alert alert-success">
-                    <span>✅</span>
-                    <span>Import Complete: ${summary.successful}/${summary.total} vouchers created (${summary.successRate} success rate)</span>
+                    <span>Import Complete: ${summary.successful}/${summary.total} vouchers created</span>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.5rem 0;">
-                    <div style="background: rgba(16, 185, 129, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
-                        <div style="font-size: 2rem; color: var(--success);">${summary.successful}</div>
-                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Successful</div>
+                    <div style="background: rgba(52, 199, 89, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.5rem; color: var(--success); font-weight: 600;">${summary.successful}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Successful</div>
                     </div>
-                    <div style="background: rgba(239, 68, 68, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
-                        <div style="font-size: 2rem; color: var(--error);">${summary.failed}</div>
-                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Failed</div>
+                    <div style="background: rgba(255, 59, 48, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.5rem; color: var(--error); font-weight: 600;">${summary.failed}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Failed</div>
                     </div>
-                    <div style="background: rgba(0, 212, 255, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
-                        <div style="font-size: 2rem; color: var(--primary);">${summary.total}</div>
-                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Total</div>
+                    <div style="background: rgba(0, 113, 227, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.5rem; color: var(--primary); font-weight: 600;">${summary.total}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Total</div>
                     </div>
                 </div>
                 ${data.data.errors.length > 0 ? `
                     <details style="margin-top: 1rem;">
                         <summary style="color: var(--error); cursor: pointer; margin-bottom: 0.5rem;">View Errors (${data.data.errors.length})</summary>
-                        <pre style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-sm); overflow-x: auto; color: var(--text-secondary); max-height: 300px;">${JSON.stringify(data.data.errors, null, 2)}</pre>
+                        <pre class="code-block" style="max-height: 300px;">${JSON.stringify(data.data.errors, null, 2)}</pre>
                     </details>
                 ` : ''}
             `;
 
-            showAlert(`Successfully imported ${summary.successful} vouchers to Tally!`, 'success');
+            showAlert(`Successfully imported ${summary.successful} vouchers`, 'success');
 
-            // Reset form after successful import
             if (summary.failed === 0) {
                 setTimeout(() => {
                     document.getElementById('bankStatementFile').value = '';
                 }, 2000);
             }
         } else {
-            resultsContainer.innerHTML = `
-                <div class="alert alert-error">
-                    <span>❌</span>
-                    <span>Import Failed: ${data.error}</span>
-                </div>
-            `;
+            resultsContainer.innerHTML = `<div class="alert alert-error"><span>Import Failed: ${data.error}</span></div>`;
             showAlert(`Import failed: ${data.error}`, 'error');
         }
     } catch (error) {
@@ -578,7 +635,7 @@ async function createSingleTransfer(event) {
     }
 
     if (fromLedger === toLedger) {
-        showAlert('From ledger and to ledger cannot be the same', 'error');
+        showAlert('Source and destination ledgers must be different', 'error');
         return;
     }
 
@@ -606,12 +663,11 @@ async function createSingleTransfer(event) {
         if (data.success) {
             resultsContainer.innerHTML = `
                 <div class="alert alert-success">
-                    <span>✅</span>
-                    <span>Transfer entry created successfully!</span>
+                    <span>Transfer entry created successfully</span>
                 </div>
-                <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-sm); margin-top: 1rem;">
-                    <div style="margin-bottom: 0.5rem;"><strong style="color: var(--primary);">Journal Entry Created:</strong></div>
-                    <div style="font-family: monospace; font-size: 0.875rem; color: var(--text-secondary);">
+                <div style="background: var(--bg-primary); padding: 1rem; border-radius: var(--radius-sm); margin-top: 1rem; border: 1px solid var(--border-color);">
+                    <div style="margin-bottom: 0.5rem;"><strong style="color: var(--primary);">Journal Entry Details</strong></div>
+                    <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; color: var(--text-secondary);">
                         <div>Date: ${date}</div>
                         <div>Dr: ${toLedger} - ₹${parseFloat(amount).toFixed(2)}</div>
                         <div>Cr: ${fromLedger} - ₹${parseFloat(amount).toFixed(2)}</div>
@@ -619,18 +675,13 @@ async function createSingleTransfer(event) {
                     </div>
                 </div>
             `;
-            showAlert('Transfer entry created successfully in Tally!', 'success');
+            showAlert('Transfer entry created successfully', 'success');
 
             // Reset form
             document.getElementById('transferAmount').value = '';
             document.getElementById('transferNarration').value = '';
         } else {
-            resultsContainer.innerHTML = `
-                <div class="alert alert-error">
-                    <span>❌</span>
-                    <span>Error: ${data.error}</span>
-                </div>
-            `;
+            resultsContainer.innerHTML = `<div class="alert alert-error"><span>Error: ${data.error}</span></div>`;
             showAlert(`Transfer failed: ${data.error}`, 'error');
         }
     } catch (error) {
@@ -658,7 +709,7 @@ async function processBulkTransfers() {
     try {
         transfers = JSON.parse(jsonData);
         if (!Array.isArray(transfers)) {
-            showAlert('JSON data must be an array of transfer objects', 'error');
+            showAlert('JSON data must be an array', 'error');
             return;
         }
     } catch (e) {
@@ -667,7 +718,7 @@ async function processBulkTransfers() {
     }
 
     const resultsContainer = document.getElementById('transferResults');
-    resultsContainer.innerHTML = '<div class="spinner"></div><p style="text-align: center; color: var(--text-secondary); margin-top: 1rem;">Processing transfers... This may take a few moments.</p>';
+    resultsContainer.innerHTML = '<div class="spinner"></div><p style="text-align: center; color: var(--text-secondary); margin-top: 1rem;">Processing transfers...</p>';
 
     try {
         const response = await fetch('/api/ledger-transfer/bulk-transfer', {
@@ -688,43 +739,37 @@ async function processBulkTransfers() {
 
             resultsContainer.innerHTML = `
                 <div class="alert alert-success">
-                    <span>✅</span>
-                    <span>Bulk Transfer Complete: ${summary.successful}/${summary.total} entries created (${summary.successRate} success rate)</span>
+                    <span>Bulk Transfer Complete: ${summary.successful}/${summary.total} entries created</span>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.5rem 0;">
-                    <div style="background: rgba(16, 185, 129, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
-                        <div style="font-size: 2rem; color: var(--success);">${summary.successful}</div>
-                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Successful</div>
+                    <div style="background: rgba(52, 199, 89, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.5rem; color: var(--success); font-weight: 600;">${summary.successful}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Successful</div>
                     </div>
-                    <div style="background: rgba(239, 68, 68, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
-                        <div style="font-size: 2rem; color: var(--error);">${summary.failed}</div>
-                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Failed</div>
+                    <div style="background: rgba(255, 59, 48, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.5rem; color: var(--error); font-weight: 600;">${summary.failed}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Failed</div>
                     </div>
-                    <div style="background: rgba(0, 212, 255, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
-                        <div style="font-size: 2rem; color: var(--primary);">${summary.total}</div>
-                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Total</div>
+                    <div style="background: rgba(0, 113, 227, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.5rem; color: var(--primary); font-weight: 600;">${summary.total}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Total</div>
                     </div>
                 </div>
                 ${data.data.errors.length > 0 ? `
                     <details style="margin-top: 1rem;">
                         <summary style="color: var(--error); cursor: pointer; margin-bottom: 0.5rem;">View Errors (${data.data.errors.length})</summary>
-                        <pre style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-sm); overflow-x: auto; color: var(--text-secondary); max-height: 300px;">${JSON.stringify(data.data.errors, null, 2)}</pre>
+                        <pre class="code-block" style="max-height: 300px;">${JSON.stringify(data.data.errors, null, 2)}</pre>
                     </details>
                 ` : ''}
             `;
 
-            showAlert(`Successfully created ${summary.successful} transfer entries!`, 'success');
+            showAlert(`Successfully created ${summary.successful} transfer entries`, 'success');
 
             if (summary.failed === 0) {
                 document.getElementById('bulkTransferJson').value = '';
             }
         } else {
-            resultsContainer.innerHTML = `
-                <div class="alert alert-error">
-                    <span>❌</span>
-                    <span>Bulk Transfer Failed: ${data.error}</span>
-                </div>
-            `;
+            resultsContainer.innerHTML = `<div class="alert alert-error"><span>Bulk Transfer Failed: ${data.error}</span></div>`;
             showAlert(`Bulk transfer failed: ${data.error}`, 'error');
         }
     } catch (error) {
@@ -733,12 +778,213 @@ async function processBulkTransfers() {
     }
 }
 
-// Add fadeOut animation
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes fadeOut {
-    from { opacity: 1; transform: translateY(0); }
-    to { opacity: 0; transform: translateY(-10px); }
-  }
-`;
-document.head.appendChild(style);
+// Global state for ledger entries
+let loadedEntries = [];
+
+// Load ledger entries for entry-based transfer
+async function loadLedgerEntries() {
+    const companyName = document.getElementById('transferCompany').value;
+    const ledgerName = document.getElementById('sourceLedger').value;
+    const fromDate = document.getElementById('entryFromDate').value || '20260101';
+    const toDate = document.getElementById('entryToDate').value || '20261231';
+
+    if (!companyName) {
+        showAlert('Please enter company name first', 'error');
+        return;
+    }
+
+    if (!ledgerName) {
+        showAlert('Please enter source ledger name', 'error');
+        return;
+    }
+
+    const tableContainer = document.getElementById('entriesTableContainer');
+    const entriesTable = document.getElementById('entriesTable');
+    const transferTarget = document.getElementById('transferTargetContainer');
+
+    entriesTable.innerHTML = '<div class="spinner" style="margin: 2rem auto;"></div>';
+    tableContainer.style.display = 'block';
+    transferTarget.style.display = 'none';
+
+    try {
+        const response = await fetch('/api/ledger-transfer/entries', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                companyName,
+                ledgerName,
+                fromDate,
+                toDate
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            loadedEntries = data.data.entries;
+
+            if (loadedEntries.length === 0) {
+                entriesTable.innerHTML = `
+                    <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">
+                        No entries found for "${ledgerName}" in the given date range.
+                    </div>
+                `;
+                return;
+            }
+
+            let tableHTML = '';
+            loadedEntries.forEach((entry, index) => {
+                tableHTML += `
+                    <div class="entry-row" style="display: flex; align-items: center; padding: 0.75rem; border-bottom: 1px solid var(--border-color); gap: 1rem;" data-index="${index}">
+                        <input type="checkbox" class="entry-checkbox" data-index="${index}" onchange="updateSelectedCount()">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                <span style="font-weight: 500; color: var(--primary);">${entry.voucherType}</span>
+                                <span style="color: var(--text-secondary); font-size: 0.85rem;">${entry.date}</span>
+                            </div>
+                            <div style="font-size: 0.9rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                ${entry.narration || 'No narration'}
+                            </div>
+                        </div>
+                        <div style="text-align: right; min-width: 100px;">
+                            <div style="font-weight: 600; color: ${entry.isDeemedPositive === 'Yes' ? 'var(--success)' : 'var(--error)'};">
+                                ₹${entry.amount.toFixed(2)}
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                ${entry.isDeemedPositive === 'Yes' ? 'Cr' : 'Dr'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            entriesTable.innerHTML = tableHTML;
+            transferTarget.style.display = 'block';
+            document.getElementById('selectAllEntries').checked = false;
+            updateSelectedCount();
+
+            showAlert(`Loaded ${loadedEntries.length} entries for "${ledgerName}"`, 'success');
+        } else {
+            entriesTable.innerHTML = `<div style="padding: 2rem; text-align: center; color: var(--error);">Error: ${data.error}</div>`;
+            showAlert(`Failed to load entries: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        entriesTable.innerHTML = '';
+        tableContainer.style.display = 'none';
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+}
+
+// Update selected count
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.entry-checkbox:checked');
+    document.getElementById('selectedCount').textContent = `${checkboxes.length} selected`;
+}
+
+// Toggle select all entries
+function toggleSelectAllEntries() {
+    const selectAll = document.getElementById('selectAllEntries').checked;
+    const checkboxes = document.querySelectorAll('.entry-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAll);
+    updateSelectedCount();
+}
+
+// Transfer selected entries
+async function transferSelectedEntries() {
+    const companyName = document.getElementById('transferCompany').value;
+    const fromLedger = document.getElementById('sourceLedger').value;
+    const toLedger = document.getElementById('targetLedger').value;
+
+    if (!companyName || !fromLedger || !toLedger) {
+        showAlert('Please fill all required fields', 'error');
+        return;
+    }
+
+    if (fromLedger.toLowerCase() === toLedger.toLowerCase()) {
+        showAlert('Source and target ledger cannot be the same', 'error');
+        return;
+    }
+
+    // Get selected entries
+    const checkboxes = document.querySelectorAll('.entry-checkbox:checked');
+    if (checkboxes.length === 0) {
+        showAlert('Please select at least one entry to transfer', 'error');
+        return;
+    }
+
+    const selectedEntries = Array.from(checkboxes).map(cb => {
+        const index = parseInt(cb.dataset.index);
+        return loadedEntries[index];
+    });
+
+    if (!confirm(`Are you sure you want to transfer ${selectedEntries.length} entries from "${fromLedger}" to "${toLedger}"?\n\nThis will modify the original vouchers in Tally.`)) {
+        return;
+    }
+
+    const resultsContainer = document.getElementById('transferResults');
+    resultsContainer.innerHTML = '<div class="spinner"></div><p style="text-align: center; color: var(--text-secondary); margin-top: 1rem;">Transferring entries...</p>';
+
+    try {
+        const response = await fetch('/api/ledger-transfer/transfer-entries', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                companyName,
+                fromLedger,
+                toLedger,
+                selectedEntries
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            const summary = data.data.summary;
+
+            resultsContainer.innerHTML = `
+                <div class="alert alert-success">
+                    <span>Transfer Complete: ${summary.successful}/${summary.total} entries modified</span>
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.5rem 0;">
+                    <div style="background: rgba(52, 199, 89, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.5rem; color: var(--success); font-weight: 600;">${summary.successful}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Successful</div>
+                    </div>
+                    <div style="background: rgba(255, 59, 48, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.5rem; color: var(--error); font-weight: 600;">${summary.failed}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Failed</div>
+                    </div>
+                    <div style="background: rgba(0, 113, 227, 0.1); padding: 1rem; border-radius: var(--radius-sm); text-align: center;">
+                        <div style="font-size: 1.5rem; color: var(--primary); font-weight: 600;">${summary.total}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Total</div>
+                    </div>
+                </div>
+                ${data.data.errors.length > 0 ? `
+                    <details style="margin-top: 1rem;">
+                        <summary style="color: var(--error); cursor: pointer; margin-bottom: 0.5rem;">View Errors (${data.data.errors.length})</summary>
+                        <pre class="code-block" style="max-height: 300px;">${JSON.stringify(data.data.errors, null, 2)}</pre>
+                    </details>
+                ` : ''}
+            `;
+
+            showAlert(`Successfully transferred ${summary.successful} entries`, 'success');
+
+            // Reload entries to reflect changes
+            if (summary.successful > 0) {
+                setTimeout(() => {
+                    loadLedgerEntries();
+                }, 1500);
+            }
+        } else {
+            resultsContainer.innerHTML = `<div class="alert alert-error"><span>Transfer Failed: ${data.error}</span></div>`;
+            showAlert(`Transfer failed: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        resultsContainer.innerHTML = '';
+        showAlert(`Error: ${error.message}`, 'error');
+    }
+}

@@ -202,4 +202,175 @@ router.post('/bulk-transfer', async (req, res) => {
     }
 });
 
+/**
+ * Get ledger entries (vouchers involving a specific ledger)
+ */
+router.post('/entries', async (req, res) => {
+    try {
+        const { companyName, ledgerName, fromDate, toDate } = req.body;
+
+        if (!companyName || !ledgerName) {
+            return res.status(400).json({
+                success: false,
+                error: 'Company name and ledger name are required'
+            });
+        }
+
+        const from = fromDate || '20260101';
+        const to = toDate || '20261231';
+
+        const result = await tally.getLedgerEntries(companyName, ledgerName, from, to);
+
+        // Parse the result to extract voucher entries
+        let entries = [];
+        if (result && result.ENVELOPE && result.ENVELOPE.BODY) {
+            const body = result.ENVELOPE.BODY;
+            if (body.DATA && body.DATA.COLLECTION) {
+                const collection = body.DATA.COLLECTION;
+                let vouchers = collection.VOUCHER;
+
+                if (vouchers) {
+                    // Ensure it's an array
+                    if (!Array.isArray(vouchers)) {
+                        vouchers = [vouchers];
+                    }
+
+                    entries = vouchers.map(v => {
+                        // Parse ledger entries
+                        let ledgerEntries = v['ALLLEDGERENTRIES.LIST'] || [];
+                        if (!Array.isArray(ledgerEntries)) {
+                            ledgerEntries = [ledgerEntries];
+                        }
+
+                        // Find the entry for this ledger
+                        const targetEntry = ledgerEntries.find(le =>
+                            le.LEDGERNAME && le.LEDGERNAME.toString().toLowerCase() === ledgerName.toLowerCase()
+                        );
+
+                        return {
+                            masterID: v.MASTERID || v.$.REMOTEID || '',
+                            guid: v.GUID || v.$.VCHKEY || '',
+                            date: v.DATE || '',
+                            voucherType: v.VOUCHERTYPENAME || '',
+                            voucherNumber: v.VOUCHERNUMBER || '',
+                            narration: v.NARRATION || '',
+                            amount: targetEntry ? Math.abs(parseFloat(targetEntry.AMOUNT || 0)) : 0,
+                            isDeemedPositive: targetEntry ? targetEntry.ISDEEMEDPOSITIVE : 'No',
+                            allLedgerEntries: ledgerEntries.map(le => ({
+                                ledgerName: le.LEDGERNAME || '',
+                                amount: parseFloat(le.AMOUNT || 0),
+                                isDeemedPositive: le.ISDEEMEDPOSITIVE || 'No'
+                            }))
+                        };
+                    });
+                }
+            }
+        }
+
+        res.json({
+            success: true,
+            data: {
+                ledgerName: ledgerName,
+                fromDate: from,
+                toDate: to,
+                count: entries.length,
+                entries: entries
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+/**
+ * Transfer selected entries - modify vouchers to change ledger
+ */
+router.post('/transfer-entries', async (req, res) => {
+    try {
+        const { companyName, fromLedger, toLedger, selectedEntries } = req.body;
+
+        if (!companyName || !fromLedger || !toLedger || !Array.isArray(selectedEntries) || selectedEntries.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Company name, from ledger, to ledger, and selected entries are required'
+            });
+        }
+
+        if (fromLedger === toLedger) {
+            return res.status(400).json({
+                success: false,
+                error: 'From ledger and to ledger cannot be the same'
+            });
+        }
+
+        const results = [];
+        const errors = [];
+
+        for (let i = 0; i < selectedEntries.length; i++) {
+            const entry = selectedEntries[i];
+
+            try {
+                // Modify ledger entries - replace fromLedger with toLedger
+                const modifiedLedgerEntries = entry.allLedgerEntries.map(le => ({
+                    ledgerName: le.ledgerName.toLowerCase() === fromLedger.toLowerCase() ? toLedger : le.ledgerName,
+                    amount: le.amount,
+                    isDeemedPositive: le.isDeemedPositive
+                }));
+
+                const voucherData = {
+                    masterID: entry.masterID,
+                    guid: entry.guid,
+                    voucherType: entry.voucherType,
+                    date: entry.date,
+                    narration: entry.narration,
+                    voucherNumber: entry.voucherNumber,
+                    ledgerEntries: modifiedLedgerEntries
+                };
+
+                const result = await tally.alterVoucher(companyName, voucherData);
+                results.push({
+                    index: i,
+                    success: true,
+                    voucherNumber: entry.voucherNumber,
+                    date: entry.date,
+                    data: result
+                });
+            } catch (error) {
+                errors.push({
+                    index: i,
+                    success: false,
+                    voucherNumber: entry.voucherNumber,
+                    date: entry.date,
+                    error: error.message
+                });
+            }
+        }
+
+        res.json({
+            success: true,
+            data: {
+                fromLedger,
+                toLedger,
+                results: results,
+                errors: errors,
+                summary: {
+                    total: selectedEntries.length,
+                    successful: results.length,
+                    failed: errors.length
+                }
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
